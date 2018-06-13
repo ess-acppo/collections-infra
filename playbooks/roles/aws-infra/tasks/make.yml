@@ -66,6 +66,55 @@
         gateway_id: "{{ new_nat_gateway.nat_gateway_id }}"
   register: nat_route_table
 
+
+- name: Create sg for taxaas ASG
+  ec2_group:
+    name: "ROSCO-app-sg-{{ VPC_ID }}"
+    description: sg for rosco ASG
+    vpc_id: "{{ VPC_ID }}"
+    region: ap-southeast-2
+    rules:
+# 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
+      - proto: tcp
+        ports: 8080
+        group_name: "{{ rosco_lb_sg.group_id }}"
+      - proto: tcp
+        ports: 10389
+        group_name: "ROSCO-app-sg-{{ VPC_ID }}"
+      - proto: tcp
+        ports: 10389
+        group_name: jenkins-sg
+      - proto: tcp
+        ports: 22
+        group_name: sg-1821e461  #sg-1821e461 for Dev #sg-a947b3d0 for UAT # parameterised until cfn for bastion is working again. This not fixed in any other fashion to enforce fixing the Bastion CFN
+  register: rosco_app_sg
+
+# Create an EC2 instance for ROSCO
+- name: launch an ROSCO instance
+  ec2:
+   id: "{{ env_name }}_rosco_{{ VPC_ID }}"
+   region: ap-southeast-2
+   key_name: DAWRAWSSYD
+   group_id: "{{ rosco_app_sg.group_id }}"
+   instance_type: t2.medium
+   image: "{{ ami_id | default('ami-6c24d20e') }}"
+   wait: yes
+   wait_timeout: 500
+   count: 1
+   instance_tags:
+      Name: "{{ env_name }}_rosco_{{ VPC_ID }}"
+      env: "{{ env_name }}"
+      role: php
+      database: mysql
+      app: rosco
+   monitoring: yes
+   vpc_subnet_id: "{{ rosco_private_subnet.subnet.id }}"
+   assign_public_ip: no
+   user_data: |
+                  #!/bin/sh
+                  sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
+  register: rosco_instance
+
 # Create a target group with targets
 - name: Create target group to asign instance to
   elb_target_group:
@@ -77,6 +126,9 @@
     vpc_id: "{{ VPC_ID }}"
     state: present
     wait: False
+    targets:
+      - Id: "{{ rosco_instance.instance_ids }}"
+        Port: 8080
   register: rosco_elb_target_group
 
 - name: Create sg for taxaas ELB
@@ -141,71 +193,11 @@
 # If this is a newly created group, the instances will not be replaced since all instances
 # will have the current launch configuration.
 
-- name: Create sg for taxaas ASG
-  ec2_group:
-    name: "ROSCO-app-sg-{{ VPC_ID }}"
-    description: sg for rosco ASG
-    vpc_id: "{{ VPC_ID }}"
-    region: ap-southeast-2
-    rules:
-# 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
-      - proto: tcp
-        ports: 8080
-        group_name: "{{ rosco_lb_sg.group_id }}"
-      - proto: tcp
-        ports: 10389
-        group_name: "ROSCO-app-sg-{{ VPC_ID }}"
-      - proto: tcp
-        ports: 10389
-        group_name: jenkins-sg
-      - proto: tcp
-        ports: 22
-        group_name: sg-1821e461  #sg-1821e461 for Dev #sg-a947b3d0 for UAT # parameterised until cfn for bastion is working again. This not fixed in any other fashion to enforce fixing the Bastion CFN
-  register: rosco_app_sg
-
-- name: launch an ROSCO instance
-  ec2:
-   id: "{{ env_name }}_rosco_{{ VPC_ID }}"
-   region: ap-southeast-2
-   key_name: DAWRAWSSYD
-   group_id: "{{ rosco_app_sg.group_id }}"
-   instance_type: t2.medium
-   image: "{{ ami_id | default('ami-6c24d20e') }}"
-   wait: yes
-   wait_timeout: 500
-   count: 1
-   instance_tags:
-      Name: "{{ env_name }}_rosco_{{ VPC_ID }}"
-      env: "{{ env_name }}"
-      role: php
-      database: mysql
-      app: rosco
-   monitoring: yes
-   vpc_subnet_id: "{{ rosco_private_subnet.subnet.id }}"
-   assign_public_ip: no
-   user_data: |
-                  #!/bin/sh
-                  sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
-  register: rosco_instance
-
 - name: print informaiton about the instance
   debug: 
     var: rosco_instance
 
 
-- name: Add instance to target group
-  elb_target_group:
-    region: ap-southeast-2
-    name: "{{ env_name }}-tg-{{ VPC_ID }}"
-    protocol: http
-    vpc_id: "{{ VPC_ID }}"
-    state: present
-    Port: 8080
-    wait: False
-    modify_targets: yes
-    targets:
-      - Id: "{{ rosco_instance.instance_ids }}"
-        Port: 8080
-  register: rosco_elb_target_group
+
 
 
