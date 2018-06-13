@@ -100,7 +100,7 @@
     region: ap-southeast-2
     access_logs_enabled: yes
     access_logs_s3_bucket: "nxl"
-    access_logs_s3_prefix: "{{ rosco_env_name }}-logs"
+    access_logs_s3_prefix: "{{ env_name }}-logs"
     name: "{{ env_name }}-elb-{{ VPC_ID }}"
     security_groups:
       - "{{ rosco_lb_sg.group_id }}"
