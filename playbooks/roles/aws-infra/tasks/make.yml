@@ -1,4 +1,5 @@
 ---
+# Create a subnet for bastian host
 - name: Create subnet for bastion host
   ec2_vpc_subnet:
     state: present
@@ -66,8 +67,83 @@
         gateway_id: "{{ new_nat_gateway.nat_gateway_id }}"
   register: nat_route_table
 
+# Create a target group with targets
+- name: Create target group to asign instance to
+  elb_target_group:
+    region: ap-southeast-2
+    name: "{{ env_name }}-tg-{{ VPC_ID }}"
+    protocol: http
+    port: 8080
+    healthy_threshold_count: 10
+    vpc_id: "{{ VPC_ID }}"
+    state: present
+    wait: False
+  register: rosco_elb_target_group
 
-- name: Create sg for taxaas ASG
+- name: Create sg for ROSCO ELB
+  ec2_group:
+    name: "ROSCO-lb-sg-{{ VPC_ID }}"
+    description: sg for ROSCO ELB
+    vpc_id: "{{ VPC_ID }}"
+    region: ap-southeast-2
+    rules:
+      # 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
+      - proto: tcp
+        ports:
+          - 80
+          - 443
+        cidr_ip: 0.0.0.0/0
+  register: rosco_lb_sg
+
+# Create ELB  for exposing ROSCO to internet and attach a listener with logging enabled
+- name: Create load balancer
+  elb_application_lb:
+    region: ap-southeast-2
+    access_logs_enabled: yes
+    access_logs_s3_bucket: "nxl"
+    access_logs_s3_prefix: "{{ env_name }}-logs"
+    name: "{{ env_name }}-elb-{{ VPC_ID }}"
+    security_groups:
+      - "{{ rosco_lb_sg.group_id }}"
+    subnets:
+      - "{{ bastion_host_subnet.subnet.id }}"
+      - "{{ bastion_host_subnet2.subnet.id }}"
+    listeners:
+      - Protocol: HTTP # Required. The protocol for connections from clients to the load balancer (HTTP or HTTPS) (case-sensitive).
+        Port: 80 # Required. The port on which the load balancer is listening.
+        DefaultActions:
+          - Type: forward # Required. Only 'forward' is accepted at this time
+            TargetGroupName: "{{ rosco_elb_target_group.target_group_name }}" # Required. The name of the target group
+      - Protocol: HTTPS # Required. The protocol for connections from clients to the load balancer (HTTP or HTTPS) (case-sensitive).
+        Port: 443 # Required. The port on which the load balancer is listening.
+        # The security policy that defines which ciphers and protocols are supported. The default is the current predefined security policy.
+        SslPolicy: ELBSecurityPolicy-2016-08
+        Certificates: # The ARN of the certificate (only one certficate ARN should be provided)
+          - CertificateArn: arn:aws:acm:ap-southeast-2:194924002687:certificate/6ea06ff7-f1d1-4921-b3dd-8999c69546a7
+        DefaultActions:
+          - Type: forward # Required. Only 'forward' is accepted at this time
+            TargetGroupName: "{{ rosco_elb_target_group.target_group_name }}"# Required. The name of the target group
+    state: present
+  register: rosco_elb
+
+- name: get my public key
+  command: cat ~/.ssh/id_rsa.pub
+  register: mypubkey
+
+# Rolling ASG Updates
+
+# Below is an example of how to assign a new launch config to an ASG and terminate old instances.
+#
+# All instances in "myasg" that do not have the launch configuration named "my_new_lc" will be terminated in
+# a rolling fashion with instances using the current launch configuration, "my_new_lc".
+#
+# This could also be considered a rolling deploy of a pre-baked AMI.
+#
+# If this is a newly created group, the instances will not be replaced since all instances
+# will have the current launch configuration.
+
+# Create a security group for ROSCO ASG.
+- name: Create sg for ROSCO ASG
   ec2_group:
     name: "ROSCO-app-sg-{{ VPC_ID }}"
     description: sg for rosco ASG
@@ -115,83 +191,6 @@
                   sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
   register: rosco_instance
 
-# Create a target group with targets
-- name: Create target group to asign instance to
-  elb_target_group:
-    region: ap-southeast-2
-    name: "{{ env_name }}-tg-{{ VPC_ID }}"
-    protocol: http
-    port: 8080
-    healthy_threshold_count: 10
-    vpc_id: "{{ VPC_ID }}"
-    state: present
-    wait: False
-    targets:
-      - Id: "{{ rosco_instance.instance_ids }}"
-        Port: 8080
-  register: rosco_elb_target_group
-
-- name: Create sg for taxaas ELB
-  ec2_group:
-    name: "ROSCO-lb-sg-{{ VPC_ID }}"
-    description: sg for ROSCO ELB
-    vpc_id: "{{ VPC_ID }}"
-    region: ap-southeast-2
-    rules:
-      # 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
-      - proto: tcp
-        ports:
-          - 80
-          - 443
-        cidr_ip: 0.0.0.0/0
-  register: rosco_lb_sg
-
-# Create ELB  for exposing ROSCO to internet and attach a listener with logging enabled
-- name: Create load balancer
-  elb_application_lb:
-    region: ap-southeast-2
-    access_logs_enabled: yes
-    access_logs_s3_bucket: "nxl"
-    access_logs_s3_prefix: "{{ env_name }}-logs"
-    name: "{{ env_name }}-elb-{{ VPC_ID }}"
-    security_groups:
-      - "{{ rosco_lb_sg.group_id }}"
-    subnets:
-      - "{{ bastion_host_subnet.subnet.id }}"
-      - "{{ bastion_host_subnet2.subnet.id }}"
-    listeners:
-      - Protocol: HTTP # Required. The protocol for connections from clients to the load balancer (HTTP or HTTPS) (case-sensitive).
-        Port: 80 # Required. The port on which the load balancer is listening.
-        DefaultActions:
-          - Type: forward # Required. Only 'forward' is accepted at this time
-            TargetGroupName: "{{ rosco_elb_target_group.target_group_name }}" # Required. The name of the target group
-      - Protocol: HTTPS # Required. The protocol for connections from clients to the load balancer (HTTP or HTTPS) (case-sensitive).
-        Port: 443 # Required. The port on which the load balancer is listening.
-        # The security policy that defines which ciphers and protocols are supported. The default is the current predefined security policy.
-        SslPolicy: ELBSecurityPolicy-2016-08
-        Certificates: # The ARN of the certificate (only one certficate ARN should be provided)
-          - CertificateArn: arn:aws:acm:ap-southeast-2:194924002687:certificate/296164cd-fb30-4886-82cb-cd8bf7562db5
-        DefaultActions:
-          - Type: forward # Required. Only 'forward' is accepted at this time
-            TargetGroupName: "{{ rosco_elb_target_group.target_group_name }}"# Required. The name of the target group
-    state: present
-  register: rosco_elb
-
-- name: get my public key
-  command: cat ~/.ssh/id_rsa.pub
-  register: mypubkey
-
-# Rolling ASG Updates
-
-# Below is an example of how to assign a new launch config to an ASG and terminate old instances.
-#
-# All instances in "myasg" that do not have the launch configuration named "my_new_lc" will be terminated in
-# a rolling fashion with instances using the current launch configuration, "my_new_lc".
-#
-# This could also be considered a rolling deploy of a pre-baked AMI.
-#
-# If this is a newly created group, the instances will not be replaced since all instances
-# will have the current launch configuration.
 
 - name: print informaiton about the instance
   debug: 
