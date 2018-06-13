@@ -204,7 +204,7 @@
     wait: False
     modify_targets: yes
     targets:
-      - Id: "{{ rosco_instance.instance_id }}"
+      - Id: "{{ rosco_instance.instance_ids }}"
         Port: 8080
   register: rosco_elb_target_group
 
