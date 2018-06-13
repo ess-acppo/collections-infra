@@ -1,0 +1,57 @@
+---
+
+
+
+# - name: destroy ASG
+#   ec2_asg:
+#     name: "{{ nxl_env_name }}_asg_{{ VPC_ID }}"
+#     state: absent
+#     region: ap-southeast-2
+#     wait_for_instances: false
+
+# - name: destroy launch config
+#   ec2_lc:
+#     name: "{{ nxl_env_name }}_lc_{{ VPC_ID }}"
+#     state: absent
+#     region: ap-southeast-2
+
+
+# Create ELB  for exposing NXL to internet and attach a listener with logging enabled
+- name: Destroy load balancer
+  elb_application_lb:
+    region: ap-southeast-2
+    name: "{{ nxl_env_name }}-elb-{{ VPC_ID }}"
+    state: absent
+    wait: True
+
+- pause:
+    seconds: 15
+
+# Create a target group with targets
+- name: Destroy target group
+  elb_target_group:
+    region: ap-southeast-2
+    name: "{{ nxl_env_name }}-tg-{{ VPC_ID }}"
+    state: absent
+    wait: True
+
+# - name: Destroy sg for taxaas ELB and EC2Instance
+#   ec2_group:
+#     name: "{{item.sgname}}"
+#     description: sg for taxaas ELB
+#     region: ap-southeast-2
+#     state: absent
+#   with_items:
+#       - { sgname: "NXL-lb-sg-{{ VPC_ID }}" }
+#       - { sgname: "NXL-app-sg-{{ VPC_ID }}" }
+
+- name: Destroy the NXL instance
+  ec2:
+   id: "{{ nxl_env_name }}_nxl_{{ VPC_ID }}"
+   instance_ids: "{{ INSTANCE_ID }}"
+   region: ap-southeast-2
+   state: absent
+   wait: True
+
+
+
