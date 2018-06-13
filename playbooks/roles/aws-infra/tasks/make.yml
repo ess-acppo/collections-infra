@@ -1,10 +1,4 @@
 ---
-#- ec2_vpc_subnet_facts:
-#    region: ap-southeast-2
-#    filters:
-#      "tag:Name": "Bastion host Subnet"
-#  register: bastion_host_subnet_facts
-
 - name: Create subnet for bastion host
   ec2_vpc_subnet:
     state: present
@@ -31,36 +25,13 @@
 
 - debug:
     var: bastion_host_subnet.subnet.id
-#
-### Use a template from a URL
-#- name: launch ansible cloudformation example
-#  cloudformation:
-#    stack_name: "bastion-hosts-{{ VPC_ID }}-{{ bastion_host_subnet.subnet.id }}"
-#    state: present
-#    region: ap-southeast-2
-#    disable_rollback: true
-#    template_url: https://s3.amazonaws.com/quickstart-reference/linux/bastion/latest/templates/linux-bastion.template
-#  args:
-#    template_parameters:
-#      BastionAMIOS: Ubuntu-Server-16.04-LTS-HVM
-#      BastionInstanceType: t2.micro
-#      EnableBanner: "true"
-#      KeyPairName: DAWRAWSSYD
-#      NumBastionHosts: 1
-#      EnableTCPForwarding: "true"
-#      PublicSubnet1ID: "{{ bastion_host_subnet.subnet.id }}"
-#      PublicSubnet2ID: "{{ bastion_host_subnet.subnet.id }}"
-#      RemoteAccessCIDR: 0.0.0.0/0
-#      VPCID: "{{ VPC_ID }}"
-#    tags:
-#      Stack: ansible-cloudformation
 
 ## Create security group
 ## TO-DO
 
 
 # Creates private subnet
-- name: Create private subnet for NXL host
+- name: Create private subnet for the host
   ec2_vpc_subnet:
     state: present
     vpc_id: "{{ VPC_ID }}"
@@ -69,11 +40,8 @@
     map_public: false
     region: ap-southeast-2
     resource_tags:
-      Name: "nxl_private_subnet_{{ VPC_ID }}"
-  register: nxl_private_subnet
-
-
-
+      Name: "rosco_private_subnet_{{ VPC_ID }}"
+  register: rosco_private_subnet
 
 # allocated a NAT gateway for this subnet
 - name: Create new nat gateway and allocate new EIP if a nat gateway does not yet exist in the subnet.
@@ -90,32 +58,31 @@
     vpc_id: "{{ VPC_ID }}"
     region: ap-southeast-2
     tags:
-      Name: "{{ nxl_env_name }}_nxl_Internal_route_table_{{ VPC_ID }}"
+      Name: "{{ env_name }}_rosco_Internal_route_table_{{ VPC_ID }}"
     subnets:
-      - "{{ nxl_private_subnet.subnet.id }}"
+      - "{{ rosco_private_subnet.subnet.id }}"
     routes:
       - dest: 0.0.0.0/0
         gateway_id: "{{ new_nat_gateway.nat_gateway_id }}"
   register: nat_route_table
 
-
 # Create a target group with targets
 - name: Create target group to asign instance to
   elb_target_group:
     region: ap-southeast-2
-    name: "{{ nxl_env_name }}-tg-{{ VPC_ID }}"
+    name: "{{ env_name }}-tg-{{ VPC_ID }}"
     protocol: http
     port: 8080
     healthy_threshold_count: 10
     vpc_id: "{{ VPC_ID }}"
     state: present
     wait: False
-  register: nxl_elb_target_group
+  register: rosco_elb_target_group
 
 - name: Create sg for taxaas ELB
   ec2_group:
-    name: "NXL-lb-sg-{{ VPC_ID }}"
-    description: sg for taxaas ELB
+    name: "ROSCO-lb-sg-{{ VPC_ID }}"
+    description: sg for ROSCO ELB
     vpc_id: "{{ VPC_ID }}"
     region: ap-southeast-2
     rules:
@@ -125,18 +92,18 @@
           - 80
           - 443
         cidr_ip: 0.0.0.0/0
-  register: nxl_lb_sg
+  register: rosco_lb_sg
 
-# Create ELB  for exposing NXL to internet and attach a listener with logging enabled
+# Create ELB  for exposing ROSCO to internet and attach a listener with logging enabled
 - name: Create load balancer
   elb_application_lb:
     region: ap-southeast-2
     access_logs_enabled: yes
     access_logs_s3_bucket: "nxl"
-    access_logs_s3_prefix: "{{ nxl_env_name }}-logs"
-    name: "{{ nxl_env_name }}-elb-{{ VPC_ID }}"
+    access_logs_s3_prefix: "{{ rosco_env_name }}-logs"
+    name: "{{ env_name }}-elb-{{ VPC_ID }}"
     security_groups:
-      - "{{ nxl_lb_sg.group_id }}"
+      - "{{ rosco_lb_sg.group_id }}"
     subnets:
       - "{{ bastion_host_subnet.subnet.id }}"
       - "{{ bastion_host_subnet2.subnet.id }}"
@@ -145,7 +112,7 @@
         Port: 80 # Required. The port on which the load balancer is listening.
         DefaultActions:
           - Type: forward # Required. Only 'forward' is accepted at this time
-            TargetGroupName: "{{ nxl_elb_target_group.target_group_name }}" # Required. The name of the target group
+            TargetGroupName: "{{ rosco_elb_target_group.target_group_name }}" # Required. The name of the target group
       - Protocol: HTTPS # Required. The protocol for connections from clients to the load balancer (HTTP or HTTPS) (case-sensitive).
         Port: 443 # Required. The port on which the load balancer is listening.
         # The security policy that defines which ciphers and protocols are supported. The default is the current predefined security policy.
@@ -154,9 +121,9 @@
           - CertificateArn: arn:aws:acm:ap-southeast-2:194924002687:certificate/296164cd-fb30-4886-82cb-cd8bf7562db5
         DefaultActions:
           - Type: forward # Required. Only 'forward' is accepted at this time
-            TargetGroupName: "{{ nxl_elb_target_group.target_group_name }}"# Required. The name of the target group
+            TargetGroupName: "{{ rosco_elb_target_group.target_group_name }}"# Required. The name of the target group
     state: present
-  register: nxl_elb
+  register: rosco_elb
 
 - name: get my public key
   command: cat ~/.ssh/id_rsa.pub
@@ -176,110 +143,68 @@
 
 - name: Create sg for taxaas ASG
   ec2_group:
-    name: "NXL-app-sg-{{ VPC_ID }}"
-    description: sg for taxaas ASG
+    name: "ROSCO-app-sg-{{ VPC_ID }}"
+    description: sg for rosco ASG
     vpc_id: "{{ VPC_ID }}"
     region: ap-southeast-2
     rules:
 # 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
       - proto: tcp
         ports: 8080
-        group_name: "{{ nxl_lb_sg.group_id }}"
+        group_name: "{{ rosco_lb_sg.group_id }}"
       - proto: tcp
         ports: 10389
-        group_name: "NXL-app-sg-{{ VPC_ID }}"
+        group_name: "ROSCO-app-sg-{{ VPC_ID }}"
       - proto: tcp
         ports: 10389
         group_name: jenkins-sg
       - proto: tcp
         ports: 22
         group_name: sg-1821e461  #sg-1821e461 for Dev #sg-a947b3d0 for UAT # parameterised until cfn for bastion is working again. This not fixed in any other fashion to enforce fixing the Bastion CFN
-  register: nxl_app_sg
+  register: rosco_app_sg
 
-- name: launch an NXL instance
+- name: launch an ROSCO instance
   ec2:
-   id: "{{ nxl_env_name }}_nxl_{{ VPC_ID }}"
+   id: "{{ env_name }}_rosco_{{ VPC_ID }}"
    region: ap-southeast-2
    key_name: DAWRAWSSYD
-   group_id: "{{ nxl_app_sg.group_id }}"
+   group_id: "{{ rosco_app_sg.group_id }}"
    instance_type: t2.medium
-   image: "{{ nxl_ami | default('ami-6c24d20e') }}"
+   image: "{{ ami_id | default('ami-6c24d20e') }}"
    wait: yes
    wait_timeout: 500
    count: 1
    instance_tags:
-      Name: "{{ nxl_env_name }}_nxl_{{ VPC_ID }}"
-      env: "{{ nxl_env_name }}"
-      role: tomcat,database,ldap
-      app: taxaas
+      Name: "{{ env_name }}_rosco_{{ VPC_ID }}"
+      env: "{{ env_name }}"
+      role: php
+      database: mysql
+      app: rosco
    monitoring: yes
-   vpc_subnet_id: "{{ nxl_private_subnet.subnet.id }}"
+   vpc_subnet_id: "{{ rosco_private_subnet.subnet.id }}"
    assign_public_ip: no
    user_data: |
                   #!/bin/sh
                   sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
-  register: nxl_instance
+  register: rosco_instance
 
 - name: print informaiton about the instance
   debug: 
-    var: nxl_instance
+    var: rosco_instance
 
 
 - name: Add instance to target group
   elb_target_group:
     region: ap-southeast-2
-    name: "{{ nxl_env_name }}-tg-{{ VPC_ID }}"
+    name: "{{ env_name }}-tg-{{ VPC_ID }}"
     protocol: http
     vpc_id: "{{ VPC_ID }}"
     state: present
     Port: 8080
     wait: False
     targets:
-      - Id: "{{ nxl_instance.instance_ids }}"
+      - Id: "{{ rosco_instance.instance_ids }}"
         Port: 8080
-  register: nxl_elb_target_group
+  register: rosco_elb_target_group
 
-# - name: create launch config
-#   ec2_lc:
-#     name: "{{ nxl_env_name }}_lc_{{ VPC_ID }}"
-#     image_id: "{{ nxl_ami | default('ami-6c24d20e') }}"
-#     key_name: DAWRAWSSYD
-#     region: ap-southeast-2
-#     security_groups: "{{ nxl_app_sg.group_id }}"
-#     instance_type: t2.medium
-#     assign_public_ip: no
-#     instance_monitoring: true
-#     vpc_id: "{{ VPC_ID }}"
-#     user_data: |
-#                     #!/bin/sh
-#                     sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
-
-# Creates one host with role tomcat,database and ldap. if required this can  be installed in separate machine.
-# But recommendation is to install in one machine as a multi machine deployment gives little / no benefit.
-# - name: create ASG
-#   ec2_asg:
-#     name: "{{ nxl_env_name }}_asg_{{ VPC_ID }}"
-#     launch_config_name: "{{ nxl_env_name }}_lc_{{ VPC_ID }}"
-#     health_check_period: 300
-#     health_check_type: ELB
-#     replace_all_instances: yes
-#     min_size: 1
-#     max_size: 1
-#     desired_capacity: 1
-#     vpc_zone_identifier: [ "{{ nxl_private_subnet.subnet.id }}" ]
-#     region: ap-southeast-2
-#     target_group_arns:
-#       - "{{ nxl_elb_target_group.target_group_arn }}"
-#     tags:
-#       - Name: "{{ nxl_env_name }}_nxl_{{ VPC_ID }}"
-#       - env: "{{ nxl_env_name }}"
-#       - app: taxaas
-#       - role: tomcat,database,ldap
-#       #- scheduler:ec2-startstop:standard: 2200;0700;utc;weekdays
-#       #- scheduler:ec2-startstop:stop-friday: none;2300;utc;fri
-#     wait_for_instances: false
-
-## This is not used any more as the instance is being launched using launch configuration
-## Creates one host with role tomcat,database and ldap. if required this can  be installed in separate machine.
-## But recommendation is to install in one machine as a multi machine deployment gives little / no benefit.
 
