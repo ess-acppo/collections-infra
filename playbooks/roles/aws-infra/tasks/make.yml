@@ -202,8 +202,9 @@
     state: present
     Port: 8080
     wait: False
+    modify_targets: yes
     targets:
-      - Id: "{{ rosco_instance.instance_ids }}"
+      - Id: "{{ rosco_instance.instance_id }}"
         Port: 8080
   register: rosco_elb_target_group
 
