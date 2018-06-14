@@ -152,7 +152,7 @@
     rules:
 # 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
       - proto: tcp
-        ports: 8080
+        ports: 80
         group_name: "{{ rosco_lb_sg.group_id }}"
       - proto: tcp
         ports: 10389
