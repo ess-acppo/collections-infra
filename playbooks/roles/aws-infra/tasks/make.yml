@@ -196,7 +196,22 @@
   debug: 
     var: rosco_instance
 
-
+# Add target instance to target group
+- name: Add target instance to target group
+  elb_target_group:
+    region: ap-southeast-2
+    name: "{{ env_name }}-tg-{{ VPC_ID }}"
+    protocol: http
+    port: 80
+    healthy_threshold_count: 10
+    vpc_id: "{{ VPC_ID }}"
+    state: present
+    wait: False
+    modify_targets: true
+    targets:
+      - Id: "{{ rosco_instance.instance_ids }}"
+        Port: 80
+  register: rosco_elb_target_group
 
 
 
