@@ -191,13 +191,13 @@
                   sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
   register: rosco_instance
 
+# Used for troubleshooting purposes
+# - name: print informaiton about the instance
+#   debug: 
+#     var: rosco_instance
 
-- name: print informaiton about the instance
-  debug: 
-    var: rosco_instance
-
-- name: print variable for ec2 instance
-  command: echo "Instance-ID:{{ rosco_instance.instance_ids[0] }}"
+# - name: print variable for ec2 instance
+#   command: echo "Instance-ID:{{ rosco_instance.instance_ids[0] }}"
 
 
 # Add target instance to target group
