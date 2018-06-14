@@ -27,10 +27,6 @@
 - debug:
     var: bastion_host_subnet.subnet.id
 
-## Create security group
-## TO-DO
-
-
 # Creates private subnet
 - name: Create private subnet for the host
   ec2_vpc_subnet:
@@ -87,7 +83,7 @@
     vpc_id: "{{ VPC_ID }}"
     region: ap-southeast-2
     rules:
-      # 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
+# 'ports' rule keyword was introduced in version 2.4. It accepts a single port value or a list of values including ranges (from_port-to_port).
       - proto: tcp
         ports:
           - 80
@@ -191,15 +187,6 @@
                   sudo  echo "{{ mypubkey.stdout }}" >> /home/ubuntu/.ssh/authorized_keys
   register: rosco_instance
 
-# Used for troubleshooting purposes
-# - name: print informaiton about the instance
-#   debug: 
-#     var: rosco_instance
-
-# - name: print variable for ec2 instance
-#   command: echo "Instance-ID:{{ rosco_instance.instance_ids[0] }}"
-
-
 # Add target instance to target group
 - name: Add target instance to target group
   elb_target_group:
@@ -217,5 +204,15 @@
         Port: 80
   register: rosco_elb_target_group
 
+
+
+
+# Used for troubleshooting purposes
+- name: print information about the instance
+  debug: 
+    var: rosco_elb
+
+# - name: print variable for ec2 instance
+#   command: echo "Instance-ID:{{ rosco_elb.dns_name }}"
 
 
