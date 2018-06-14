@@ -204,13 +204,21 @@
         Port: 80
   register: rosco_elb_target_group
 
-
+# Add an alias record that points to an ROSCO elb
+- route53:
+    command: create
+    zone: oztaxa.com
+    record: "{{ env_name }}.oztaxa.com"
+    type: A
+    value: "{{ rosco_elb.dns_name }}"
+    alias: True
+    alias_hosted_zone_id: "{{ rosco_elb.canonical_hosted_zone_id }}"
 
 
 # Used for troubleshooting purposes
-- name: print information about the instance
-  debug: 
-    var: rosco_elb
+# - name: print information about the instance
+#   debug: 
+#     var: rosco_elb
 
 # - name: print variable for ec2 instance
 #   command: echo "Instance-ID:{{ rosco_elb.dns_name }}"
