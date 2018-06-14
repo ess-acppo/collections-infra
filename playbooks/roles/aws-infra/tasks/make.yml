@@ -197,7 +197,7 @@
     var: rosco_instance
 
 - name: print variable for ec2 instance
-  command: echo "Instance-ID:{{ rosco_instance.instance_ids }}"
+  command: echo "Instance-ID:{{ rosco_instance.instance_ids[0] }}"
 
 
 # Add target instance to target group
