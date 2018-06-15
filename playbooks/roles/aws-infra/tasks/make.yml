@@ -205,7 +205,8 @@
   register: rosco_elb_target_group
 
 # Add an alias record that points to an ROSCO elb
-- route53:
+- name: Add Route53 DNS entry for the new instance
+  route53:
     command: create
     zone: oztaxa.com
     record: "{{ env_name }}.oztaxa.com"
