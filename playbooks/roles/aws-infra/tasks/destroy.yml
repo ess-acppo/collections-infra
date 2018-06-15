@@ -10,12 +10,12 @@
 - pause:
     seconds: 15
 
-# Deregister the target from the target group
-- elb_target:
-    target_group_name: "{{ env_name }}_nxl_{{ VPC_ID }}"
-    target_id: "{{ INSTANCE_ID }}"
-    state: absent
-    Wait: True
+# # Deregister the target from the target group
+# - elb_target:
+#     target_group_name: "{{ env_name }}_nxl_{{ VPC_ID }}"
+#     target_id: "{{ INSTANCE_ID }}"
+#     state: absent
+#     Wait: True
 
 # Create a target group with targets
 - name: Destroy target group
