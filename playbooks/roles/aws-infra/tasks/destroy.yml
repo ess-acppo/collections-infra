@@ -11,7 +11,8 @@
     seconds: 15
 
 # Deregister the target from the target group
-- elb_target:
+- name: Destroy the targets
+  elb_target:
     target_group_name: "{{ env_name }}_nxl_{{ VPC_ID }}"
     target_id: "{{ INSTANCE_ID }}"
     state: absent
