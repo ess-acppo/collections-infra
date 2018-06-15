@@ -25,14 +25,6 @@
     state: absent
     wait: True
 
-- name: Destroy the ROSCO instance
-  ec2:
-   id: "{{ env_name }}_nxl_{{ VPC_ID }}"
-   instance_ids: "{{ INSTANCE_ID }}"
-   region: ap-southeast-2
-   state: absent
-   wait: True
-
 # Get the details about the route53 entry for this instance
 - name: Get the details of the route53 dns entry
   route53:
@@ -56,6 +48,14 @@
     value: "{{ dns_entry.value }}"
     alias: True
     alias_hosted_zone_id: "{{ dns_entry.set.alias_hosted_zone_id }}"
+
+- name: Destroy the ROSCO instance
+  ec2:
+   id: "{{ env_name }}_nxl_{{ VPC_ID }}"
+   instance_ids: "{{ INSTANCE_ID }}"
+   region: ap-southeast-2
+   state: absent
+   wait: True
 
 # NOT USED ANYMORE
 # - name: destroy ASG
