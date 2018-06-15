@@ -1,5 +1,5 @@
 ---
-# Create ELB  for exposing NXL to internet and attach a listener with logging enabled
+# Destroy ELB  
 - name: Destroy load balancer
   elb_application_lb:
     region: ap-southeast-2
@@ -11,8 +11,7 @@
     seconds: 15
 
 # Deregister the target from the target group
-- name: Destroy the targets
-  elb_target:
+- elb_target:
     target_group_name: "{{ env_name }}_nxl_{{ VPC_ID }}"
     target_id: "{{ INSTANCE_ID }}"
     state: absent
