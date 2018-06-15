@@ -25,7 +25,7 @@
     state: absent
     wait: True
 
-- name: Destroy the NXL instance
+- name: Destroy the ROSCO instance
   ec2:
    id: "{{ env_name }}_nxl_{{ VPC_ID }}"
    instance_ids: "{{ INSTANCE_ID }}"
@@ -44,8 +44,7 @@
 
 # Print variable dns_entry
 - name: Print variable dns_entry
-  
-
+  command: echo "DNS Entry:\ {{ dns_entry }}"
 
 # Delete the alias route53 record for the instance
 - name: Delete the route53 dns entry
