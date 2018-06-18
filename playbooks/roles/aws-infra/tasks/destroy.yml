@@ -45,9 +45,9 @@
     zone: oztaxa.com
     record: "{{ env_name }}.oztaxa.com"
     type: A
-    value: "{{ dns_entry['set']['alias_hosted_zone_id'] }}"
+    value: "{{ dns_entry['set']['value'] }}"
     alias: True
-    alias_hosted_zone_id: "{{ hosted_zone_id }}"
+    alias_hosted_zone_id: "{{ dns_entry['set']['alias_hosted_zone_id'] }}"
 
 - name: Destroy the ROSCO instance
   ec2:
