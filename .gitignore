@@ -49,3 +49,6 @@ sandi_meter/assets
 
 # custom Ignores
 /catalina.out
+
+# My Ignores
+mytestplay.yml
