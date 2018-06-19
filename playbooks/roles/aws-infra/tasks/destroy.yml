@@ -45,8 +45,8 @@
     zone: oztaxa.com
     record: "{{ env_name }}.oztaxa.com"
     type: A
-    value: "{{ dns_entry['set']['values'][0] }}"
-    # value: "{{ dns_entry['set']['value'][0] }}"
+    #value: "{{ dns_entry['set']['values'][0] }}"
+    value: "{{ dns_entry['set']['value'][0] }}"
     alias: True
     alias_hosted_zone_id: "{{ dns_entry['set']['alias_hosted_zone_id'] }}"
 
